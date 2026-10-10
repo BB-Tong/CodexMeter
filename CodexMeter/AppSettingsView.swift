@@ -98,6 +98,46 @@ struct AppSettingsView: View {
                     }
                 }
             }
+            Section(L10n.string("settings.push.title")) {
+                Toggle(L10n.string("settings.push.five_hour"), isOn: $settings.pushFiveHourResetEnabled)
+                Toggle(L10n.string("settings.push.weekly"), isOn: $settings.pushWeeklyResetEnabled)
+            }
+            Section(L10n.string("settings.push.bark")) {
+                Toggle(L10n.string("settings.push.bark_enable"), isOn: $settings.barkEnabled)
+                if settings.barkEnabled {
+                    TextField(L10n.string("settings.push.bark_server"), text: $settings.barkServerURL)
+                    TextField(L10n.string("settings.push.bark_key"), text: $settings.barkDeviceKey)
+                    TextField(L10n.string("settings.push.bark_icon"), text: $settings.barkIconURL)
+                    Button(L10n.string("settings.push.test")) {
+                        service.sendTestBarkPush { success, error in
+                            if !success, let error = error {
+                                DispatchQueue.main.async { actionError = error }
+                            }
+                        }
+                    }
+                    .disabled(settings.barkServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || settings.barkDeviceKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            Section(L10n.string("settings.push.gotify")) {
+                Toggle(L10n.string("settings.push.gotify_enable"), isOn: $settings.gotifyEnabled)
+                if settings.gotifyEnabled {
+                    TextField(L10n.string("settings.push.gotify_server"), text: $settings.gotifyServerURL)
+                    SecureField(L10n.string("settings.push.gotify_token"), text: $settings.gotifyAppToken)
+                    Picker(L10n.string("settings.push.gotify_priority"), selection: $settings.gotifyPriority) {
+                        ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], id: \.self) { priority in
+                            Text("\(priority)").tag(priority)
+                        }
+                    }
+                    Button(L10n.string("settings.push.test")) {
+                        service.sendTestGotifyPush { success, error in
+                            if !success, let error = error {
+                                DispatchQueue.main.async { actionError = error }
+                            }
+                        }
+                    }
+                    .disabled(settings.gotifyServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || settings.gotifyAppToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
         }
         .formStyle(.grouped)
     }

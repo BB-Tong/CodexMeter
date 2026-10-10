@@ -27,6 +27,7 @@ final class CodexUsageService: ObservableObject {
 
     private let settings: AppSettings
     private let notificationManager: NotificationManager
+    private let pushNotificationService: PushNotificationService
     private let history: UsageHistoryModel
     private var process: Process?
     private var inputHandle: FileHandle?
@@ -59,11 +60,13 @@ final class CodexUsageService: ObservableObject {
     init(
         settings: AppSettings,
         history: UsageHistoryModel,
-        notificationManager: NotificationManager = NotificationManager()
+        notificationManager: NotificationManager = NotificationManager(),
+        pushNotificationService: PushNotificationService? = nil
     ) {
         self.settings = settings
         self.history = history
         self.notificationManager = notificationManager
+        self.pushNotificationService = pushNotificationService ?? PushNotificationService(settings: settings)
 
         // Defer startup until StateObject construction has completed on the main run loop.
         DispatchQueue.main.async { [weak self] in
@@ -313,6 +316,14 @@ final class CodexUsageService: ObservableObject {
                 self.settings.showSettingsError(message, destination: .notifications)
             }
         }
+    }
+
+    func sendTestBarkPush(completion: ((Bool, String?) -> Void)? = nil) {
+        pushNotificationService.sendTestBark(completion: completion)
+    }
+
+    func sendTestGotifyPush(completion: ((Bool, String?) -> Void)? = nil) {
+        pushNotificationService.sendTestGotify(completion: completion)
     }
 
     private func installRefreshTimer() {
@@ -583,6 +594,7 @@ final class CodexUsageService: ObservableObject {
         refreshSchedule = CodexRefreshSchedule()
         history.deactivateAccount()
         notificationManager.resetEvaluationState()
+        pushNotificationService.resetEvaluationState()
 
         // App Server has already applied the auth change. Force its managed ChatGPT
         // token refresh before asking for the new account's quota.
@@ -712,6 +724,7 @@ final class CodexUsageService: ObservableObject {
                 threshold: settings.notificationThreshold
             )
         }
+        pushNotificationService.evaluate(windows: parsed)
     }
 
     private func shouldRecordQuotaHistory(
