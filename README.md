@@ -64,7 +64,9 @@ visible at a glance.
   local runtime paths to the App Server child process.
 - Preserves the last successful result and marks it as stale when refresh fails.
 - Supports optional low-quota and over-pace notifications.
-- Supports push notifications to Bark and Gotify servers when 5-hour or weekly quota resets, with custom icon URL support for Bark.
+- Supports optional quota-replenishment reminders through Bark, Gotify,
+  Telegram bots, and Discord webhooks, with independent channel switches,
+  test messages, delivery status, bounded retries, and Keychain credential storage.
 - Supports launch at login.
 - Includes English, Simplified Chinese, and Traditional Chinese.
 - Lets the app interface follow the system appearance or stay in Light or Dark
@@ -290,6 +292,14 @@ verification checklist, and planned developer customization options.
   locally from the account type and normalized email. Neither the email nor
   this internal key is included in CSV exports.
 - It does not add its own analytics or tracking.
+- Remote notification channels are disabled by default. When enabled, the
+  configured service receives the quota-window name and observed remaining
+  percentage, but no account email, authentication data, or token history.
+  Push keys/tokens and Discord webhook URLs are stored locally in Keychain,
+  never in history backups. Legacy plaintext preferences are removed only after
+  successful migration; Keychain access failures remain visible and preserve
+  the prior credential rather than silently discarding it. An ad-hoc app update
+  may require macOS Keychain access approval again.
 - Usage history is stored only in
   `~/Library/Application Support/CodexMeter/UsageHistory.sqlite` and can be
   exported or cleared by the user.
@@ -298,12 +308,48 @@ App Sandbox is currently disabled because CodexMeter must launch the user's
 local Codex executable. This should be reviewed deliberately before any future
 Mac App Store distribution.
 
-## Full history backup and restore
+## Settings
 
-The menu-bar **Settings** entry opens one resizable window with four categories:
-General, Menu Bar & Popover, History & Backup, and Developer, followed by About.
+The menu-bar **Settings** entry opens one resizable window with General,
+Menu Bar & Popover, Notifications, History & Backup, and Developer, followed by About.
 Existing preferences are preserved. About/update information opens in the same
 settings window; Usage History remains a separate window.
+
+## Remote quota notifications
+
+Open **Settings → Notifications** and enable only the channels you need.
+Select five-hour and/or weekly replenishment reminders independently of the
+Mac's existing low-quota and over-pace alerts. All remote channels start off.
+
+- **Bark**: enter an HTTPS server address and the device key from the iPhone app;
+  an optional HTTPS icon URL is supported.
+- **Gotify**: enter your HTTPS server address and application token; choose a
+  message priority.
+- **Telegram**: create a bot with [@BotFather](https://t.me/BotFather), start a
+  chat with it (or add it to a group), then enter its token and the destination
+  Chat ID. Use the official [bot setup guide](https://core.telegram.org/bots/tutorial)
+  and [getUpdates API](https://core.telegram.org/bots/api#getupdates) to obtain
+  your chat ID locally; never publish a URL containing your bot token.
+- **Discord**: create a webhook under the destination channel's
+  **Integrations → Webhooks** and paste its URL. Anyone with this URL can post
+  to that channel, so treat it as a password. See the
+  [Discord webhook guide](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks).
+
+Use **Send test notification** to check your setup. The status confirms server
+acceptance, not whether the phone displayed or you read the message. Temporary
+network errors, rate limits, and server failures get at most three attempts;
+permanent failures are shown without exposing server responses or secrets.
+Changing the account or destination cancels pending old deliveries. HTTPS is
+required and redirects are refused to avoid forwarding credentials.
+
+CodexMeter must be running and connected. Notifications describe observed quota
+replenishment, not a prediction or an announcement from OpenAI; partial recovery
+reports the actual remaining percentage. Initial observations and unused 100%
+windows with sliding reset dates do not send reminders. Resets while the app is
+closed are not retrospectively replayed. A lost server response can still cause
+a duplicate on retry because these services do not share an idempotency protocol.
+
+## Full history backup and restore
 
 Open **Settings → History & Backup → Backup & Restore** to export a `.codexmeterbackup` file.
 It includes all retained quota and token history across accounts, database

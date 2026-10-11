@@ -16,6 +16,7 @@ struct AppSettingsView: View {
     private let categories = [
         ("settings.category.general", "gearshape"),
         ("settings.category.menu", "menubar.rectangle"),
+        ("settings.category.notifications", "bell"),
         ("settings.category.history", "externaldrive"),
         ("developer.title", "hammer"),
         ("about.title", "info.circle")
@@ -36,6 +37,9 @@ struct AppSettingsView: View {
                     PopoverCustomizationView(service: service, settings: settings)
                 case "settings.category.history":
                     historySettings
+                case "settings.category.notifications":
+                    NotificationsSettingsView(service: service, settings: settings,
+                                              push: service.pushNotificationService)
                 case "developer.title":
                     DeveloperOptionsView(settings: settings, history: history,
                                          updateChecker: updateChecker, embedded: true)
@@ -87,56 +91,6 @@ struct AppSettingsView: View {
                 Toggle(L10n.string("settings.launch_at_login"), isOn: Binding(
                     get: { settings.launchAtLoginEnabled }, set: { settings.setLaunchAtLogin($0) }
                 ))
-            }
-            Section {
-                Toggle(L10n.string("settings.notifications"), isOn: Binding(
-                    get: { settings.notificationsEnabled }, set: { service.setNotificationsEnabled($0) }
-                ))
-                if settings.notificationsEnabled {
-                    Picker(L10n.string("settings.notification_threshold"), selection: $settings.notificationThreshold) {
-                        ForEach([10, 20, 30, 40], id: \.self) { Text("\($0)%").tag($0) }
-                    }
-                }
-            }
-            Section(L10n.string("settings.push.title")) {
-                Toggle(L10n.string("settings.push.five_hour"), isOn: $settings.pushFiveHourResetEnabled)
-                Toggle(L10n.string("settings.push.weekly"), isOn: $settings.pushWeeklyResetEnabled)
-            }
-            Section(L10n.string("settings.push.bark")) {
-                Toggle(L10n.string("settings.push.bark_enable"), isOn: $settings.barkEnabled)
-                if settings.barkEnabled {
-                    TextField(L10n.string("settings.push.bark_server"), text: $settings.barkServerURL)
-                    TextField(L10n.string("settings.push.bark_key"), text: $settings.barkDeviceKey)
-                    TextField(L10n.string("settings.push.bark_icon"), text: $settings.barkIconURL)
-                    Button(L10n.string("settings.push.test")) {
-                        service.sendTestBarkPush { success, error in
-                            if !success, let error = error {
-                                DispatchQueue.main.async { actionError = error }
-                            }
-                        }
-                    }
-                    .disabled(settings.barkServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || settings.barkDeviceKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            Section(L10n.string("settings.push.gotify")) {
-                Toggle(L10n.string("settings.push.gotify_enable"), isOn: $settings.gotifyEnabled)
-                if settings.gotifyEnabled {
-                    TextField(L10n.string("settings.push.gotify_server"), text: $settings.gotifyServerURL)
-                    SecureField(L10n.string("settings.push.gotify_token"), text: $settings.gotifyAppToken)
-                    Picker(L10n.string("settings.push.gotify_priority"), selection: $settings.gotifyPriority) {
-                        ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], id: \.self) { priority in
-                            Text("\(priority)").tag(priority)
-                        }
-                    }
-                    Button(L10n.string("settings.push.test")) {
-                        service.sendTestGotifyPush { success, error in
-                            if !success, let error = error {
-                                DispatchQueue.main.async { actionError = error }
-                            }
-                        }
-                    }
-                    .disabled(settings.gotifyServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || settings.gotifyAppToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
             }
         }
         .formStyle(.grouped)

@@ -157,6 +157,7 @@ final class AppSettings: ObservableObject {
         didSet {
             defaults.set(language.rawValue, forKey: Keys.language)
             L10n.setLanguage(language.languageCode)
+            updatePushCredentialError()
         }
     }
 
@@ -194,7 +195,7 @@ final class AppSettings: ObservableObject {
     }
 
     @Published var barkDeviceKey: String {
-        didSet { defaults.set(barkDeviceKey, forKey: Keys.barkDeviceKey) }
+        didSet { persistPushCredential(barkDeviceKey, for: .barkDeviceKey) }
     }
 
     @Published var barkIconURL: String {
@@ -210,12 +211,34 @@ final class AppSettings: ObservableObject {
     }
 
     @Published var gotifyAppToken: String {
-        didSet { defaults.set(gotifyAppToken, forKey: Keys.gotifyAppToken) }
+        didSet { persistPushCredential(gotifyAppToken, for: .gotifyAppToken) }
     }
 
     @Published var gotifyPriority: Int {
         didSet { defaults.set(gotifyPriority, forKey: Keys.gotifyPriority) }
     }
+
+    @Published var telegramEnabled: Bool {
+        didSet { defaults.set(telegramEnabled, forKey: Keys.telegramEnabled) }
+    }
+
+    @Published var telegramBotToken: String {
+        didSet { persistPushCredential(telegramBotToken, for: .telegramBotToken) }
+    }
+
+    @Published var telegramChatID: String {
+        didSet { defaults.set(telegramChatID, forKey: Keys.telegramChatID) }
+    }
+
+    @Published var discordEnabled: Bool {
+        didSet { defaults.set(discordEnabled, forKey: Keys.discordEnabled) }
+    }
+
+    @Published var discordWebhookURL: String {
+        didSet { persistPushCredential(discordWebhookURL, for: .discordWebhookURL) }
+    }
+
+    @Published private(set) var pushCredentialError: String?
 
     @Published var pushFiveHourResetEnabled: Bool {
         didSet { defaults.set(pushFiveHourResetEnabled, forKey: Keys.pushFiveHourResetEnabled) }
@@ -279,6 +302,8 @@ final class AppSettings: ObservableObject {
     let historyIdentitySalt: String
 
     private let defaults: UserDefaults
+    private let pushCredentials: PushCredentialStore
+    private var failedPushCredentials = Set<PushCredential>()
 
     private enum Keys {
         static let appearanceMode = "appearanceMode"
@@ -289,12 +314,13 @@ final class AppSettings: ObservableObject {
         static let notificationThreshold = "notificationThreshold"
         static let barkEnabled = "push.barkEnabled"
         static let barkServerURL = "push.barkServerURL"
-        static let barkDeviceKey = "push.barkDeviceKey"
         static let barkIconURL = "push.barkIconURL"
         static let gotifyEnabled = "push.gotifyEnabled"
         static let gotifyServerURL = "push.gotifyServerURL"
-        static let gotifyAppToken = "push.gotifyAppToken"
         static let gotifyPriority = "push.gotifyPriority"
+        static let telegramEnabled = "push.telegramEnabled"
+        static let telegramChatID = "push.telegramChatID"
+        static let discordEnabled = "push.discordEnabled"
         static let pushFiveHourResetEnabled = "push.fiveHourResetEnabled"
         static let pushWeeklyResetEnabled = "push.weeklyResetEnabled"
         static let historyRetention = "history.retention"
@@ -308,8 +334,16 @@ final class AppSettings: ObservableObject {
         static let historyIdentitySalt = "history.identitySalt"
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        credentialBackend: any PushCredentialBackend = KeychainPushCredentialBackend()
+    ) {
         self.defaults = defaults
+        let credentialStore = PushCredentialStore(defaults: defaults, backend: credentialBackend)
+        self.pushCredentials = credentialStore
+        let loadedCredentials = Dictionary(uniqueKeysWithValues: PushCredential.allCases.map {
+            ($0, credentialStore.load($0))
+        })
         if let storedSalt = defaults.string(forKey: Keys.historyIdentitySalt),
            !storedSalt.isEmpty {
             historyIdentitySalt = storedSalt
@@ -351,13 +385,18 @@ final class AppSettings: ObservableObject {
         }
         barkEnabled = defaults.bool(forKey: Keys.barkEnabled)
         barkServerURL = defaults.string(forKey: Keys.barkServerURL) ?? "https://api.day.app"
-        barkDeviceKey = defaults.string(forKey: Keys.barkDeviceKey) ?? ""
+        barkDeviceKey = loadedCredentials[.barkDeviceKey]?.value ?? ""
         barkIconURL = defaults.string(forKey: Keys.barkIconURL) ?? ""
         gotifyEnabled = defaults.bool(forKey: Keys.gotifyEnabled)
         gotifyServerURL = defaults.string(forKey: Keys.gotifyServerURL) ?? ""
-        gotifyAppToken = defaults.string(forKey: Keys.gotifyAppToken) ?? ""
+        gotifyAppToken = loadedCredentials[.gotifyAppToken]?.value ?? ""
         let storedGotifyPriority = defaults.integer(forKey: Keys.gotifyPriority)
         gotifyPriority = storedGotifyPriority == 0 ? 5 : storedGotifyPriority
+        telegramEnabled = defaults.bool(forKey: Keys.telegramEnabled)
+        telegramBotToken = loadedCredentials[.telegramBotToken]?.value ?? ""
+        telegramChatID = defaults.string(forKey: Keys.telegramChatID) ?? ""
+        discordEnabled = defaults.bool(forKey: Keys.discordEnabled)
+        discordWebhookURL = loadedCredentials[.discordWebhookURL]?.value ?? ""
         historyRetention = HistoryRetention(
             rawValue: defaults.string(forKey: Keys.historyRetention) ?? ""
         ) ?? .forever
@@ -400,7 +439,24 @@ final class AppSettings: ObservableObject {
             fallback: 55
         )
         L10n.setLanguage(language.languageCode)
+        failedPushCredentials = Set(loadedCredentials.compactMap { $0.value.failed ? $0.key : nil })
+        updatePushCredentialError()
         refreshLaunchAtLoginStatus()
+    }
+
+    private func persistPushCredential(_ value: String, for credential: PushCredential) {
+        do {
+            try pushCredentials.save(value, for: credential)
+            failedPushCredentials.remove(credential)
+        } catch {
+            failedPushCredentials.insert(credential)
+        }
+        updatePushCredentialError()
+    }
+
+    private func updatePushCredentialError() {
+        pushCredentialError = failedPushCredentials.isEmpty
+            ? nil : L10n.string("settings.push.credentials_error")
     }
 
     func resetDeveloperOptions() {

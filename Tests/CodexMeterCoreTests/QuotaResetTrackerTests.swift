@@ -68,6 +68,22 @@ final class QuotaResetTrackerTests: XCTestCase {
         XCTAssertTrue(resets.isEmpty)
     }
 
+    func testPartialReplenishmentPreservesActualRemainingPercent() {
+        var tracker = QuotaResetTracker()
+        let reset = start.addingTimeInterval(18_000)
+        _ = tracker.evaluate(windows: [makeWindow(id: "codex-primary", used: 60, resetsAt: reset, duration: fiveHours)])
+        let replenished = makeWindow(id: "codex-primary", used: 20, resetsAt: reset, duration: fiveHours)
+        XCTAssertEqual(tracker.evaluate(windows: [replenished]).first?.remainingPercent, 80)
+        XCTAssertTrue(tracker.evaluate(windows: [replenished]).isEmpty)
+    }
+
+    func testSmallPercentageJitterDoesNotTriggerReset() {
+        var tracker = QuotaResetTracker()
+        let reset = start.addingTimeInterval(18_000)
+        _ = tracker.evaluate(windows: [makeWindow(id: "codex-primary", used: 60, resetsAt: reset, duration: fiveHours)])
+        XCTAssertTrue(tracker.evaluate(windows: [makeWindow(id: "codex-primary", used: 59, resetsAt: reset, duration: fiveHours)]).isEmpty)
+    }
+
     private func makeWindow(
         id: String,
         used: Int,

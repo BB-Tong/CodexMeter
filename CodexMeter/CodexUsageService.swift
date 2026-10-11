@@ -27,7 +27,7 @@ final class CodexUsageService: ObservableObject {
 
     private let settings: AppSettings
     private let notificationManager: NotificationManager
-    private let pushNotificationService: PushNotificationService
+    let pushNotificationService: PushNotificationService
     private let history: UsageHistoryModel
     private var process: Process?
     private var inputHandle: FileHandle?

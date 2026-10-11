@@ -135,7 +135,7 @@ has changed.
   the Menu Bar & Popover settings category. Hidden sections must continue
   refreshing and recording history.
 - `AppSettingsView.swift` owns one resizable settings window with General,
-  Menu Bar & Popover, History & Backup, and Developer categories. The menu bar
+  Menu Bar & Popover, Notifications, History & Backup, and Developer categories. The menu bar
   Settings row opens this window directly; do not expand settings inline.
   About is the final sidebar category and embeds About/update content in the
   settings detail pane. History & Backup uses the same grouped Form as General.
@@ -154,8 +154,18 @@ has changed.
   enters over-pace or low-quota, clear over-pace only after recovering by 2
   points and low-quota only at threshold + 2, re-arm on a new reset cycle, and
   persist the state so relaunching within a cycle does not repeat alerts.
-  `PushNotificationService.swift` delivers remote push notifications to
-  configured Bark and Gotify endpoints when five-hour or weekly quota resets.
+  `NotificationsSettingsView.swift` groups local alerts and opt-in Bark, Gotify,
+  Telegram, and Discord channels with secure inputs, test actions, and delivery
+  status. `PushNotificationService.swift` delivers replenishment reminders only
+  for selected five-hour/weekly windows, with actual observed remaining quota,
+  at most three attempts for transient failures, bounded Retry-After, and
+  account/configuration cancellation. Use HTTPS, refuse redirects, and display
+  locally authored errors instead of raw network/server details. Do no remote
+  work while idle or disabled and do not add a new polling timer.
+  `Core/PushDelivery.swift` owns request/response, retry, and deduplication policy.
+  `Core/PushCredentialStore.swift` stores push secrets in the local login
+  Keychain (including the Discord webhook URL); preserve legacy values until
+  migration succeeds and surface failure. Backups never include push settings.
   `Core/QuotaResetTracker.swift` models quota window replenishment and full
   restoration without triggering on unused sliding timestamps or account boundaries.
 - `Localizable.xcstrings` is the source of English, Simplified Chinese, and
@@ -506,6 +516,10 @@ Codex App Server.
 
 ### Candidate follow-ups
 
+- [x] Add independent Bark, Gotify, Telegram, and Discord quota-replenishment
+  notification channels; secure credentials, accurate partial recovery text,
+  server-acceptance status/test messages, bounded retry, and account cancellation.
+
 - [x] Re-investigate the **quota progress-bar tint regression after a live
   Light/Dark appearance switch**. While CodexMeter remains running, switching
   the system appearance can make both five-hour and weekly quota bars fall back
@@ -683,9 +697,13 @@ controls respond.
 
 ```bash
 swift test
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer bash Scripts/test_push_service.sh
 git diff --check
 ```
 
 `Package.swift` deliberately exposes only `CodexMeter/Core` as the testable
 Swift Package target; the macOS app continues to compile the same source through
 the Xcode project.
+The push integration script compiles the actual delivery service with fake
+preferences and URLProtocol responses; it must never contact real endpoints
+or read/write the maintainer's Keychain.
