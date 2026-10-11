@@ -5,7 +5,7 @@ visible at a glance.
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black)
 ![Swift](https://img.shields.io/badge/Swift-5-orange)
-![Version](https://img.shields.io/badge/version-1.6.3-blue)
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
 
 > [!NOTE]
 > CodexMeter is an unofficial community project. It is not affiliated with or
@@ -64,6 +64,7 @@ visible at a glance.
   local runtime paths to the App Server child process.
 - Preserves the last successful result and marks it as stale when refresh fails.
 - Supports optional low-quota and over-pace notifications.
+- Supports push notifications to Bark and Gotify servers when 5-hour or weekly quota resets, with custom icon URL support for Bark.
 - Supports launch at login.
 - Includes English, Simplified Chinese, and Traditional Chinese.
 - Lets the app interface follow the system appearance or stay in Light or Dark
@@ -192,7 +193,7 @@ the quota indicator in the macOS menu bar after launch.
 
 ## Download and Install
 
-Download `CodexMeter-1.6.3.dmg` from the GitHub Releases page, open it, and drag
+Download `CodexMeter-1.7.0.dmg` from the GitHub Releases page, open it, and drag
 CodexMeter into the Applications folder.
 
 The downloadable build uses an ad-hoc signature and is not notarized. On first
@@ -259,8 +260,8 @@ the login Keychain, signs the archive metadata, and updates the repository's
 
 ```bash
 Scripts/prepare_sparkle_update.sh \
-  v1.6.3 \
-  /path/to/CodexMeter-1.6.3.dmg \
+  v1.7.0 \
+  /path/to/CodexMeter-1.7.0.dmg \
   /path/to/Sparkle/bin
 ```
 

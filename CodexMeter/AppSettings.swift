@@ -185,6 +185,46 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(notificationThreshold, forKey: Keys.notificationThreshold) }
     }
 
+    @Published var barkEnabled: Bool {
+        didSet { defaults.set(barkEnabled, forKey: Keys.barkEnabled) }
+    }
+
+    @Published var barkServerURL: String {
+        didSet { defaults.set(barkServerURL, forKey: Keys.barkServerURL) }
+    }
+
+    @Published var barkDeviceKey: String {
+        didSet { defaults.set(barkDeviceKey, forKey: Keys.barkDeviceKey) }
+    }
+
+    @Published var barkIconURL: String {
+        didSet { defaults.set(barkIconURL, forKey: Keys.barkIconURL) }
+    }
+
+    @Published var gotifyEnabled: Bool {
+        didSet { defaults.set(gotifyEnabled, forKey: Keys.gotifyEnabled) }
+    }
+
+    @Published var gotifyServerURL: String {
+        didSet { defaults.set(gotifyServerURL, forKey: Keys.gotifyServerURL) }
+    }
+
+    @Published var gotifyAppToken: String {
+        didSet { defaults.set(gotifyAppToken, forKey: Keys.gotifyAppToken) }
+    }
+
+    @Published var gotifyPriority: Int {
+        didSet { defaults.set(gotifyPriority, forKey: Keys.gotifyPriority) }
+    }
+
+    @Published var pushFiveHourResetEnabled: Bool {
+        didSet { defaults.set(pushFiveHourResetEnabled, forKey: Keys.pushFiveHourResetEnabled) }
+    }
+
+    @Published var pushWeeklyResetEnabled: Bool {
+        didSet { defaults.set(pushWeeklyResetEnabled, forKey: Keys.pushWeeklyResetEnabled) }
+    }
+
     @Published var historyRetention: HistoryRetention {
         didSet { defaults.set(historyRetention.rawValue, forKey: Keys.historyRetention) }
     }
@@ -247,6 +287,16 @@ final class AppSettings: ObservableObject {
         static let popoverContent = "popover.contentConfiguration"
         static let notificationsEnabled = "notificationsEnabled"
         static let notificationThreshold = "notificationThreshold"
+        static let barkEnabled = "push.barkEnabled"
+        static let barkServerURL = "push.barkServerURL"
+        static let barkDeviceKey = "push.barkDeviceKey"
+        static let barkIconURL = "push.barkIconURL"
+        static let gotifyEnabled = "push.gotifyEnabled"
+        static let gotifyServerURL = "push.gotifyServerURL"
+        static let gotifyAppToken = "push.gotifyAppToken"
+        static let gotifyPriority = "push.gotifyPriority"
+        static let pushFiveHourResetEnabled = "push.fiveHourResetEnabled"
+        static let pushWeeklyResetEnabled = "push.weeklyResetEnabled"
         static let historyRetention = "history.retention"
         static let includePrereleaseUpdates = "updates.includePrereleases"
         static let developerAppearance = "developer.appearance"
@@ -289,6 +339,25 @@ final class AppSettings: ObservableObject {
         notificationsEnabled = defaults.bool(forKey: Keys.notificationsEnabled)
         let storedThreshold = defaults.integer(forKey: Keys.notificationThreshold)
         notificationThreshold = storedThreshold == 0 ? 20 : storedThreshold
+        if defaults.object(forKey: Keys.pushFiveHourResetEnabled) != nil {
+            pushFiveHourResetEnabled = defaults.bool(forKey: Keys.pushFiveHourResetEnabled)
+        } else {
+            pushFiveHourResetEnabled = true
+        }
+        if defaults.object(forKey: Keys.pushWeeklyResetEnabled) != nil {
+            pushWeeklyResetEnabled = defaults.bool(forKey: Keys.pushWeeklyResetEnabled)
+        } else {
+            pushWeeklyResetEnabled = true
+        }
+        barkEnabled = defaults.bool(forKey: Keys.barkEnabled)
+        barkServerURL = defaults.string(forKey: Keys.barkServerURL) ?? "https://api.day.app"
+        barkDeviceKey = defaults.string(forKey: Keys.barkDeviceKey) ?? ""
+        barkIconURL = defaults.string(forKey: Keys.barkIconURL) ?? ""
+        gotifyEnabled = defaults.bool(forKey: Keys.gotifyEnabled)
+        gotifyServerURL = defaults.string(forKey: Keys.gotifyServerURL) ?? ""
+        gotifyAppToken = defaults.string(forKey: Keys.gotifyAppToken) ?? ""
+        let storedGotifyPriority = defaults.integer(forKey: Keys.gotifyPriority)
+        gotifyPriority = storedGotifyPriority == 0 ? 5 : storedGotifyPriority
         historyRetention = HistoryRetention(
             rawValue: defaults.string(forKey: Keys.historyRetention) ?? ""
         ) ?? .forever

@@ -20,6 +20,26 @@ struct MenuBarProgressView: View {
     private var renderedFlashIntensity: CGFloat = 0
     private var renderedDigitIndices: Set<Int> = []
 
+    init(
+        remainingPercent: Int?,
+        remainingTimePercent: Double?,
+        title: String,
+        style: MenuBarDisplayStyle,
+        attentionLevel: QuotaAttentionLevel,
+        isStale: Bool,
+        appearance: MenuBarAppearance,
+        flashContext: String? = nil
+    ) {
+        self.remainingPercent = remainingPercent
+        self.remainingTimePercent = remainingTimePercent
+        self.title = title
+        self.style = style
+        self.attentionLevel = attentionLevel
+        self.isStale = isStale
+        self.appearance = appearance
+        self.flashContext = flashContext
+    }
+
     private struct FlashSample: Equatable {
         let context: String?
         let remaining: Int?
