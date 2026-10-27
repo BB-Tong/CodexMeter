@@ -74,7 +74,7 @@ jobs:
           set -euo pipefail
           app="$RUNNER_TEMP/DerivedData/Build/Products/Release/CodexMeter.app"
           test -d "$app"
-          bash Scripts/sign_ad_hoc_release.sh "$app"
+          zsh Scripts/sign_ad_hoc_release.sh "$app"
           codesign --verify --deep --strict "$app"
           stage="$RUNNER_TEMP/CodexMeterDMG"
           mkdir -p "$stage" "$GITHUB_WORKSPACE/dist"
