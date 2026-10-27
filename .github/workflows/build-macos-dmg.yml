@@ -1,0 +1,102 @@
+name: Build CodexMeter Mode Switcher DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-macos-dmg.yml'
+      - '.codexmeter-integration/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codexmeter-modeswitcher-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and package macOS arm64
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - name: Checkout CodexMeter fork
+        uses: actions/checkout@v4
+
+      - name: Verify macOS and Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          uname -m
+          xcode-select -p
+          xcodebuild -version
+          test "$(uname -m)" = "arm64"
+          test -f CodexMeter.xcodeproj/project.pbxproj
+
+      - name: Test integration patch against fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .codexmeter-integration/scripts/test_patch.py
+
+      - name: Apply Codex mode integration to checked-out sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .codexmeter-integration/scripts/apply_integration.py "$GITHUB_WORKSPACE"
+          git diff --stat
+
+      - name: Swift package unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test
+
+      - name: Xcode Release build
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project CodexMeter.xcodeproj \
+            -scheme CodexMeter \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Sign ad-hoc, validate, package DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Release/CodexMeter.app"
+          test -d "$app"
+          bash Scripts/sign_ad_hoc_release.sh "$app"
+          codesign --verify --deep --strict "$app"
+          stage="$RUNNER_TEMP/CodexMeterDMG"
+          mkdir -p "$stage" "$GITHUB_WORKSPACE/dist"
+          ditto "$app" "$stage/CodexMeter.app"
+          ln -s /Applications "$stage/Applications"
+          dmg="$GITHUB_WORKSPACE/dist/CodexMeter-ModeSwitcher-macOS-arm64.dmg"
+          hdiutil create -volname 'CodexMeter Mode Switcher' \
+            -srcfolder "$stage" -format UDZO -ov "$dmg"
+          (
+            cd "$GITHUB_WORKSPACE/dist"
+            shasum -a 256 CodexMeter-ModeSwitcher-macOS-arm64.dmg \
+              > CodexMeter-ModeSwitcher-macOS-arm64.sha256
+          )
+          echo "Generated $(ls -lh "$dmg")"
+
+      - name: Upload DMG as downloadable Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexMeter-ModeSwitcher-macOS-arm64
+          path: |
+            dist/CodexMeter-ModeSwitcher-macOS-arm64.dmg
+            dist/CodexMeter-ModeSwitcher-macOS-arm64.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
