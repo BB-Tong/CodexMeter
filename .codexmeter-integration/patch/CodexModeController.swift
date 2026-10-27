@@ -60,6 +60,9 @@ final class CodexModeController: ObservableObject {
     @Published private(set) var explanation = "尚未读取 Codex 配置"
     @Published private(set) var error: String?
     @Published private(set) var isSwitching = false
+    @Published private(set) var roleSelection = CodexRoleSelection()
+    @Published private(set) var roleReadError: String?
+    @Published private(set) var isSavingRoles = false
 
     private let homeURL: URL
     private let configURL: URL
@@ -73,6 +76,7 @@ final class CodexModeController: ObservableObject {
         self.homeURL = homeURL
         self.configURL = homeURL.appendingPathComponent(".codex/config.toml")
         refresh(force: true)
+        refreshRoleSelection()
         observeDirectory()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -158,18 +162,33 @@ final class CodexModeController: ObservableObject {
         NSWorkspace.shared.open(configURL.deletingLastPathComponent())
     }
 
-    /// Installs templates only when the user explicitly requests it.
-    /// Empty model IDs intentionally inherit the coordinator model.
-    func installRoles(executionModel: String, reviewModel: String) {
+    /// Read the existing model values without modifying role descriptions or MCP settings.
+    func refreshRoleSelection() {
         do {
-            try RoleInstaller.install(homeURL: homeURL,
-                                      executionModel: executionModel,
-                                      reviewModel: reviewModel)
-            refresh(force: true)
-            explanation = "角色模板已写入；请检查模型 ID，重新开启 Codex 会话后使用。"
-            error = nil
+            roleSelection = try CodexRoleConfiguration.read(homeURL: homeURL)
+            roleReadError = nil
         } catch {
-            self.error = "安装角色失败：\(error.localizedDescription)"
+            roleReadError = error.localizedDescription
+        }
+    }
+
+    func saveRoleModels(_ selection: CodexRoleSelection, availableModels: [CodexAvailableModel]) {
+        guard !isSavingRoles else { return }
+        isSavingRoles = true
+        error = nil
+        defer { isSavingRoles = false }
+        do {
+            let backup = try CodexRoleConfiguration.save(
+                homeURL: homeURL, selection: selection,
+                availableIDs: Set(availableModels.map(\.id))
+            )
+            refreshRoleSelection()
+            explanation = backup == nil
+                ? "模型配置无需修改，已是最新值。"
+                : "Agent 配置已保存并备份；请新建 Codex 会话。"
+            if let backup { print("CodexMeter role backup created: \(backup.lastPathComponent)") }
+        } catch {
+            self.error = "保存 Agent 配置失败：\(error.localizedDescription)"
         }
     }
 
@@ -189,6 +208,7 @@ final class CodexModeController: ObservableObject {
             self.debounceWork?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 self?.refresh(force: true)
+                self?.refreshRoleSelection()
             }
             self.debounceWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(400), execute: work)
@@ -226,86 +246,6 @@ final class CodexModeController: ObservableObject {
             return nil
         } catch {
             return "无法执行 Codex CLI：\(error.localizedDescription)"
-        }
-    }
-}
-
-private enum RoleInstaller {
-    static func install(homeURL: URL, executionModel: String, reviewModel: String) throws {
-        let fm = FileManager.default
-        let folder = homeURL.appendingPathComponent(".codex", isDirectory: true)
-        let agents = folder.appendingPathComponent("agents", isDirectory: true)
-        let config = folder.appendingPathComponent("config.toml")
-        try fm.createDirectory(at: agents, withIntermediateDirectories: true)
-        let existing: String
-        if fm.fileExists(atPath: config.path) {
-            existing = try String(contentsOf: config, encoding: .utf8)
-        } else {
-            existing = ""
-        }
-        let entries: [(String, String, String, String)] = [
-            ("meter_executor", "CodexMeter: scoped UI/code implementation tasks",
-             "Implement focused UI, CSS and well-scoped fixes. Test changes; report files and failures.", executionModel),
-            ("meter_reviewer", "CodexMeter: architecture and complex-bug reviewer",
-             "Investigate complex bugs and architecture. Review risks. Do not edit files unless asked.", reviewModel)
-        ]
-        var additions = ""
-        var filesToCreate: [(URL, String)] = []
-        for (name, description, instructions, model) in entries {
-            let target = agents.appendingPathComponent(name + ".toml")
-            // Never modify an existing role declaration or role file.
-            if existing.contains("[agents.\(name)]") { continue }
-            guard !target.path.contains("'") else {
-                throw NSError(domain: "CodexMeter", code: 2,
-                              userInfo: [NSLocalizedDescriptionKey: "配置路径包含不支持的单引号"])
-            }
-            let cleanModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard cleanModel.isEmpty || cleanModel.range(of: "^[a-zA-Z0-9._-]+$", options: .regularExpression) != nil else {
-                throw NSError(domain: "CodexMeter", code: 1,
-                              userInfo: [NSLocalizedDescriptionKey: "模型 ID 包含无效字符"])
-            }
-            var role = "developer_instructions = \"\(instructions)\"\n"
-            if !cleanModel.isEmpty { role += "model = \"\(cleanModel)\"\n" }
-            if !fm.fileExists(atPath: target.path) {
-                filesToCreate.append((target, role))
-            }
-            additions += "\n[agents.\(name)]\n"
-            additions += "description = \"\(description)\"\n"
-            additions += "config_file = '\(target.path)'\n"
-        }
-        guard !additions.isEmpty else { return }
-        // Do not append tables into an unterminated TOML multiline string.
-        for quote in ["\"\"\"", "'''"] {
-            let count = existing.components(separatedBy: quote).count - 1
-            guard count % 2 == 0 else {
-                throw NSError(domain: "CodexMeter", code: 3,
-                              userInfo: [NSLocalizedDescriptionKey: "检测到未闭合的多行 TOML 字符串"])
-            }
-        }
-        let backup = folder.appendingPathComponent("config.toml.codexmeter-backup-\(Int(Date().timeIntervalSince1970))")
-        if fm.fileExists(atPath: config.path) { try fm.copyItem(at: config, to: backup) }
-        var createdFiles: [URL] = []
-        do {
-            for (path, text) in filesToCreate {
-                try text.write(to: path, atomically: true, encoding: .utf8)
-                createdFiles.append(path)
-            }
-            let current = (try? String(contentsOf: config, encoding: .utf8)) ?? ""
-            guard current == existing else {
-                throw NSError(domain: "CodexMeter", code: 4,
-                              userInfo: [NSLocalizedDescriptionKey: "配置已被其他程序修改；没有覆盖它"])
-            }
-            let permissions = (try? fm.attributesOfItem(atPath: config.path))?[.posixPermissions]
-            let updated = existing + (existing.hasSuffix("\n") ? "" : "\n") + additions
-            try updated.write(to: config, atomically: true, encoding: .utf8)
-            if let permissions {
-                try fm.setAttributes([.posixPermissions: permissions], ofItemAtPath: config.path)
-            } else {
-                try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: config.path)
-            }
-        } catch {
-            for file in createdFiles { try? fm.removeItem(at: file) }
-            throw error
         }
     }
 }

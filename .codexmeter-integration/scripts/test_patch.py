@@ -49,6 +49,52 @@ struct ContentView: View {
     }
 }
 ''')
+    (repo / 'CodexMeter' / 'CodexUsageService.swift').write_text('''class CodexUsageService {
+    @Published private(set) var rateLimitResetCredits: CodexRateLimitResetCreditsSummary?
+    private enum RequestKind: Equatable {
+        case initialize
+        case account
+        case rateLimits
+        case usage
+    }
+    private var usageRequestID: Int?
+    private func clearAppServerResources(terminate: Bool = false) {
+        // Every teardown path passes through here, including restarts.
+    }
+    private func handleMessage(_ message: [String: Any]) {
+        if let error = message["error"] as? [String: Any] {
+            let text = "fake"
+        }
+        guard let result = message["result"] as? [String: Any] else {
+            switch kind {
+            case .initialize:
+                break
+            case .rateLimits:
+                break
+            case .usage:
+                break
+            case .account:
+                break
+            }
+            return
+        }
+        switch kind {
+        case .initialize:
+            _ = send(["method": "initialized", "params": [:]])
+            refresh()
+        case .account:
+            parseAccount(result)
+        case .rateLimits:
+            parseRateLimits(result, source: rateLimitSource)
+        case .usage:
+            parseTokenUsage(result)
+        }
+    }
+    private func handleAccountUpdated() {
+        // App Server has already applied the auth change. Force its managed ChatGPT
+    }
+}
+''')
     (repo / 'CodexMeter' / 'UpdateChecker.swift').write_text('''struct UpdateChecker {
     let updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
